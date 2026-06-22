@@ -1,0 +1,371 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPEX-SIM | Simulador de Planeación y Control de Producción</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .progress-bar { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- HEADER -->
+    <nav class="bg-slate-900 text-white p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-industry text-blue-400 text-2xl"></i>
+                <span class="font-bold text-xl tracking-tighter">OPEX-SIM <span class="font-light text-sm text-gray-400">v1.0</span></span>
+            </div>
+            <div class="flex items-center space-x-6">
+                <div class="text-right">
+                    <p class="text-xs text-gray-400 uppercase">Semana Actual</p>
+                    <p id="week-display" class="font-bold text-xl text-blue-400">1 / 10</p>
+                </div>
+                <div class="text-right border-l border-gray-700 pl-6">
+                    <p class="text-xs text-gray-400 uppercase">Puntuación PCP</p>
+                    <p id="score-display" class="font-bold text-xl text-green-400">0</p>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-6 p-4">
+        
+        <!-- DASHBOARD INDICADORES -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                <p class="text-gray-500 text-sm font-semibold uppercase">Nivel de Servicio</p>
+                <h3 id="kpi-service" class="text-2xl font-bold text-slate-800">100%</h3>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div id="bar-service" class="bg-blue-500 h-1.5 rounded-full progress-bar" style="width: 100%"></div>
+                </div>
+            </div>
+            <div class="stat-card bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
+                <p class="text-gray-500 text-sm font-semibold uppercase">Costo Total</p>
+                <h3 id="kpi-cost" class="text-2xl font-bold text-slate-800">$0</h3>
+            </div>
+            <div class="stat-card bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                <p class="text-gray-500 text-sm font-semibold uppercase">Inventario Final</p>
+                <h3 id="kpi-inventory" class="text-2xl font-bold text-slate-800">500 u.</h3>
+            </div>
+            <div class="stat-card bg-white p-4 rounded-xl shadow-sm border-l-4 border-red-500">
+                <p class="text-gray-500 text-sm font-semibold uppercase">Utilización Capacidad</p>
+                <h3 id="kpi-utilization" class="text-2xl font-bold text-slate-800">0%</h3>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div id="bar-utilization" class="bg-red-500 h-1.5 rounded-full progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- PANEL DE DECISIONES -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- EVENTO SEMANAL -->
+                <div id="event-box" class="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-start space-x-4">
+                    <div class="bg-blue-500 text-white p-3 rounded-lg">
+                        <i id="event-icon" class="fas fa-info-circle text-xl"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-blue-900" id="event-title">Inicio de Operaciones</h4>
+                        <p class="text-blue-800 text-sm" id="event-desc">Bienvenido Jefe de PCP. Define tu plan maestro para la primera semana.</p>
+                    </div>
+                </div>
+
+                <!-- CONTROLES -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold mb-4 border-b pb-2 flex justify-between">
+                        <span>Configuración del MPS</span>
+                        <span class="text-sm font-normal text-gray-500 italic">Capacidad Regular: <b id="cap-reg-display">1000</b> u.</span>
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Producción Turno Regular (u)</label>
+                            <input type="range" id="input-regular" min="0" max="1000" value="800" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1"><span id="val-regular">800</span><span>Max: 1000</span></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Horas Extra (u)</label>
+                            <input type="range" id="input-extra" min="0" max="300" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1"><span id="val-extra">0</span><span>Max: 300</span></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Subcontratación (u) <span class="text-[10px] text-red-500">($$$)</span></label>
+                            <input type="number" id="input-subcon" value="0" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm border p-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Contratar Temporal (Cupo +100u)</label>
+                            <select id="input-temp" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm border p-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="0">No contratar</option>
+                                <option value="1">1 Turno Temporal ($500)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 flex justify-end">
+                        <button onclick="processWeek()" class="bg-slate-900 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all flex items-center space-x-2">
+                            <span>EJECUTAR SEMANA</span>
+                            <i class="fas fa-play text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIDEBAR: ESTADO DE PLANTA -->
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold mb-4 flex items-center"><i class="fas fa-clipboard-list mr-2 text-blue-500"></i> Demanda Actual</h3>
+                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div>
+                            <p class="text-xs text-gray-500">Pronóstico</p>
+                            <p id="demand-val" class="text-xl font-bold">1200</p>
+                        </div>
+                        <i class="fas fa-arrow-right text-gray-300"></i>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500">Pendiente (Backlog)</p>
+                            <p id="backlog-val" class="text-xl font-bold text-red-600">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold mb-4 flex items-center"><i class="fas fa-robot mr-2 text-green-500"></i> IA Feedback</h3>
+                    <div id="ai-feedback" class="text-sm italic text-gray-600 leading-relaxed">
+                        "Ingeniero, estamos listos para comenzar. Recuerde que mantener inventario en exceso castiga el flujo de caja, pero quedar mal al cliente es aún más costoso."
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl shadow-sm">
+                    <canvas id="miniChart" height="150"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL FINAL -->
+    <div id="modal-report" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-3xl font-bold text-slate-900 mb-2">Informe Ejecutivo de Gestión</h2>
+            <p class="text-gray-500 mb-6">Simulación de Planta: Bebidas del Valle S.A.</p>
+            
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
+                    <p class="text-xs uppercase text-gray-400">Puntaje Final</p>
+                    <p id="final-score" class="text-4xl font-black text-blue-600">0</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
+                    <p class="text-xs uppercase text-gray-400">Eficiencia Global</p>
+                    <p id="final-efficiency" class="text-4xl font-black text-green-600">0%</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="border-l-4 border-blue-500 pl-4">
+                    <h4 class="font-bold">Fortalezas</h4>
+                    <p id="report-pros" class="text-sm text-gray-600">Analizando datos...</p>
+                </div>
+                <div class="border-l-4 border-red-500 pl-4">
+                    <h4 class="font-bold text-red-600">Áreas de Mejora</h4>
+                    <p id="report-cons" class="text-sm text-gray-600">Analizando errores...</p>
+                </div>
+            </div>
+
+            <button onclick="location.reload()" class="w-full mt-8 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition-colors">REINICIAR SIMULACIÓN</button>
+        </div>
+    </div>
+
+    <script>
+        // --- MOTOR DE SIMULACIÓN ---
+        
+        let state = {
+            week: 1,
+            maxWeeks: 10,
+            score: 0,
+            inventory: 500,
+            demand: 1200,
+            backlog: 0,
+            totalCost: 0,
+            serviceLevels: [],
+            costsHistory: [],
+            capacityRegular: 1000,
+            hourlyCostRegular: 10,
+            hourlyCostExtra: 18,
+            hourlyCostSubcon: 35,
+            holdingCost: 2,
+            backorderCost: 50,
+            achievements: [],
+            isGameOver: false
+        };
+
+        const events = [
+            { title: "Demanda Estable", desc: "El mercado se mantiene estable. No hay variaciones significativas.", modDemand: 1, modCap: 1, icon: "fa-info-circle" },
+            { title: "Falla de Maquinaria", desc: "Una cinta transportadora falló. Capacidad regular reducida un 30%.", modDemand: 1, modCap: 0.7, icon: "fa-tools" },
+            { title: "Pedido Extraordinario", desc: "Un cliente retail solicita un 40% más de volumen para promoción.", modDemand: 1.4, modCap: 1, icon: "fa-shopping-cart" },
+            { title: "Retraso de Proveedor", desc: "Escasez de envases. Producción limitada al 50%.", modDemand: 1, modCap: 0.5, icon: "fa-truck-loading" },
+            { title: "Huelga Parcial", desc: "Ausentismo laboral imprevisto. Capacidad reducida un 20%.", modDemand: 1, modCap: 0.8, icon: "fa-users-slash" },
+            { title: "Pico de Temporada", desc: "Aumento de demanda del 25% por clima cálido.", modDemand: 1.25, modCap: 1, icon: "fa-sun" }
+        ];
+
+        // Inicializar Gráfico
+        const ctx = document.getElementById('miniChart').getContext('2d');
+        const miniChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Sem 0'],
+                datasets: [{
+                    label: 'Inv. Final',
+                    data: [500],
+                    borderColor: '#3b82f6',
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // Actualizar UI
+        function updateUI() {
+            document.getElementById('week-display').innerText = `${state.week} / ${state.maxWeeks}`;
+            document.getElementById('score-display').innerText = Math.round(state.score);
+            document.getElementById('kpi-inventory').innerText = `${state.inventory} u.`;
+            document.getElementById('kpi-cost').innerText = `$${state.totalCost.toLocaleString()}`;
+            document.getElementById('demand-val').innerText = Math.round(state.demand);
+            document.getElementById('backlog-val').innerText = state.backlog;
+            
+            // Inputs
+            document.getElementById('cap-reg-display').innerText = Math.round(state.capacityRegular);
+            document.getElementById('input-regular').max = Math.round(state.capacityRegular);
+            document.getElementById('val-regular').innerText = document.getElementById('input-regular').value;
+            document.getElementById('val-extra').innerText = document.getElementById('input-extra').value;
+
+            // IA Feedback dinámico
+            let feedback = "";
+            if (state.backlog > 0) feedback = "¡Alerta! Tenemos pedidos pendientes. Esto penaliza severamente el nivel de servicio y la utilidad.";
+            else if (state.inventory > 1500) feedback = "El costo de almacenamiento está subiendo. Deberíamos ajustar la producción al ritmo de la demanda.";
+            else feedback = "Buen control de flujo. Mantén el equilibrio entre capacidad y demanda.";
+            document.getElementById('ai-feedback').innerText = `"${feedback}"`;
+        }
+
+        // Manejar cambios en sliders
+        document.getElementById('input-regular').oninput = updateUI;
+        document.getElementById('input-extra').oninput = updateUI;
+
+        // Procesar Semana
+        function processWeek() {
+            if(state.week > state.maxWeeks) return;
+
+            // 1. Recoger decisiones
+            const prodReg = parseInt(document.getElementById('input-regular').value);
+            const prodExt = parseInt(document.getElementById('input-extra').value);
+            const prodSub = parseInt(document.getElementById('input-subcon').value);
+            const useTemp = parseInt(document.getElementById('input-temp').value);
+
+            let capTemp = useTemp * 100;
+            let totalProd = prodReg + prodExt + prodSub + capTemp;
+            
+            // 2. Cálculos de Producción y Costos
+            let weekCost = 0;
+            weekCost += prodReg * state.hourlyCostRegular;
+            weekCost += prodExt * state.hourlyCostExtra;
+            weekCost += prodSub * state.hourlyCostSubcon;
+            weekCost += useTemp * 500;
+
+            // 3. Satisfacer Demanda
+            let totalAvailable = state.inventory + totalProd;
+            let totalNeeded = state.demand + state.backlog;
+            
+            let fulfilled = 0;
+            if (totalAvailable >= totalNeeded) {
+                fulfilled = totalNeeded;
+                state.inventory = totalAvailable - totalNeeded;
+                state.backlog = 0;
+            } else {
+                fulfilled = totalAvailable;
+                state.backlog = totalNeeded - totalAvailable;
+                state.inventory = 0;
+            }
+
+            // 4. Costos de Inventario y Penalizaciones
+            weekCost += state.inventory * state.holdingCost;
+            weekCost += state.backlog * state.backorderCost;
+            state.totalCost += weekCost;
+
+            // 5. KPIs y Puntuación
+            let weekServiceLevel = (fulfilled / totalNeeded) * 100;
+            state.serviceLevels.push(weekServiceLevel);
+            
+            let utilization = (prodReg / state.capacityRegular) * 100;
+            
+            // Cálculo de Score (Simplificado)
+            let weekScore = (weekServiceLevel * 0.7) + (utilization * 0.3);
+            if (state.backlog > 0) weekScore -= 20;
+            state.score += weekScore;
+
+            // Actualizar UI de KPIs
+            document.getElementById('kpi-service').innerText = `${Math.round(weekServiceLevel)}%`;
+            document.getElementById('bar-service').style.width = `${weekServiceLevel}%`;
+            document.getElementById('kpi-utilization').innerText = `${Math.round(utilization)}%`;
+            document.getElementById('bar-utilization').style.width = `${utilization}%`;
+
+            // 6. Preparar siguiente semana / Evento aleatorio
+            state.week++;
+            if (state.week <= state.maxWeeks) {
+                const randomEvent = events[Math.floor(Math.random() * events.length)];
+                state.capacityRegular = 1000 * randomEvent.modCap;
+                state.demand = (1200 + (Math.random() * 400 - 200)) * randomEvent.modDemand;
+                
+                // Actualizar Box de Evento
+                document.getElementById('event-title').innerText = randomEvent.title;
+                document.getElementById('event-desc').innerText = randomEvent.desc;
+                document.getElementById('event-icon').className = `fas ${randomEvent.icon} text-xl`;
+                
+                // Actualizar Gráfico
+                miniChart.data.labels.push(`Sem ${state.week-1}`);
+                miniChart.data.datasets[0].data.push(state.inventory);
+                miniChart.update();
+                
+                updateUI();
+            } else {
+                showFinalReport();
+            }
+        }
+
+        function showFinalReport() {
+            document.getElementById('modal-report').classList.remove('hidden');
+            const avgService = state.serviceLevels.reduce((a,b) => a+b, 0) / state.maxWeeks;
+            const finalPCPScore = Math.min(100, Math.max(0, (state.score / 10)));
+            
+            document.getElementById('final-score').innerText = Math.round(finalPCPScore);
+            document.getElementById('final-efficiency').innerText = `${Math.round(avgService)}%`;
+
+            // Lógica de fortalezas y debilidades
+            let pros = "";
+            let cons = "";
+
+            if (avgService > 95) pros += "• Excelente nivel de servicio al cliente. ";
+            else cons += "• Incumplimiento frecuente de la demanda (Backlog alto). ";
+
+            if (state.totalCost < 45000) pros += "• Gran control de costos operativos. ";
+            else cons += "• Costos totales elevados por exceso de inventario o subcontratación. ";
+
+            document.getElementById('report-pros').innerText = pros || "Gestión estable.";
+            document.getElementById('report-cons').innerText = cons || "Sin errores críticos detectados.";
+        }
+
+        // Start
+        updateUI();
+
+    </script>
+</body>
+</html>
